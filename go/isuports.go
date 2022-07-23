@@ -1344,6 +1344,7 @@ func competitionRankingHandler(c echo.Context) error {
 		ctx,
 		&count,
 		"SELECT COUNT(*) FROM  visit_history WHERE player_id = ? AND tenant_id = ? AND competition_id = ?",
+		v.playerID, tenant.ID, competitionID,
 	); err != nil {
 		return fmt.Errorf("")
 	}
