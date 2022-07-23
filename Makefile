@@ -2,14 +2,12 @@ WEBHOOK_URL=https://discord.com/api/webhooks/993867060528549928/79xOfLjqv1PHuwyP
 
 .PHONY: build
 build:
-	cd /home/isucon/webapp/go; \
-	go build -o isuports main.go; \
-	sudo systemctl restart deamon-reload; \
+	sudo systemctl daemon-reload; \
 	sudo systemctl restart isuports.service;
 
 .PHONY: alp
 alp:
-	sudo cat /var/log/nginx/access.log | alp ltsv -m '/api/chair/[0-9]+,/api/estate/[0-9]+,/api/chair/buy/[0-9]+,/api/estate/req_doc/[0-9]+,/api/recommended_estate/[0-9],/_next/static/*' --sort avg -r > alp_log.txt
+	sudo cat /var/log/nginx/access.log | alp ltsv -m '/api/organizer/player/[0-9a-z-]+/disqualified,/api/organizer/competition/[0-9a-z-]+/finish,/api/organizer/competition/[0-9a-z-]+/score,/api/player/player/[0-9a-z-]+,/api/player/competition/[0-9a-z-]+/ranking' --sort avg -r > alp_log.txt
 	sudo mv alp_log.txt /temp/alp_log.txt
 	curl -X POST -F alp_log=@/temp/alp_log.txt ${WEBHOOK_URL}
 
