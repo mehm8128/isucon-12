@@ -550,7 +550,7 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 	if err := adminDB.SelectContext(
 		ctx,
 		&vhs,
-		"SELECT player_id, updated_at FROM visit_history WHERE tenant_id = ? AND competition_id = ? GROUP BY player_id",
+		"SELECT player_id, updated_at FROM visit_history WHERE tenant_id = ? AND competition_id = ? ",
 		tenantID,
 		comp.ID,
 	); err != nil && err != sql.ErrNoRows {
@@ -1340,12 +1340,11 @@ func competitionRankingHandler(c echo.Context) error {
 	if err := adminDB.GetContext(ctx, &tenant, "SELECT * FROM tenant WHERE id = ?", v.tenantID); err != nil {
 		return fmt.Errorf("error Select tenant: id=%d, %w", v.tenantID, err)
 	}
-	//todo: 一件検索、存在を見る、あればupdate,なければinsert into
-	his := VisitHistoryRow{}
+    count :=0
 	if err := adminDB.GetContext(
 		ctx,
-		&his,
-		"SELECT * FROM  visit_history WHERE player_id = ? AND tenant_id = ? AND competition_id = ?",
+		&count,
+		"SELECT COUNT(*) FROM  visit_history WHERE player_id = ? AND tenant_id = ? AND competition_id = ?",
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			if _, err := adminDB.ExecContext(
@@ -1360,7 +1359,7 @@ func competitionRankingHandler(c echo.Context) error {
 
 			}
 		}
-    } 
+    } else{
     if _,err := adminDB.ExecContext(
                 ctx,
                 "UPDATE visit_history SET updated_at = ? WHERE player_id = ? AND tenant_id = ? AND competition_id = ?",
@@ -1369,6 +1368,7 @@ func competitionRankingHandler(c echo.Context) error {
             );err != nil{
                 return fmt.Errorf("")
             }
+        }
 
 
 	var rankAfter int64
