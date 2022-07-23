@@ -1339,17 +1339,36 @@ func competitionRankingHandler(c echo.Context) error {
 	if err := adminDB.GetContext(ctx, &tenant, "SELECT * FROM tenant WHERE id = ?", v.tenantID); err != nil {
 		return fmt.Errorf("error Select tenant: id=%d, %w", v.tenantID, err)
 	}
-
-	if _, err := adminDB.ExecContext(
+	//todo: 一件検索、存在を見る、あればupdate,なければinsert into
+	his := VisitHistoryRow{}
+	if err := adminDB.GetContext(
 		ctx,
-		"INSERT INTO visit_history (player_id, tenant_id, competition_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-		v.playerID, tenant.ID, competitionID, now, now,
+		&his,
+		"SELECT * FROM  visit_history WHERE player_id = ? AND tenant_id = ? AND competition_id = ?",
 	); err != nil {
-		return fmt.Errorf(
-			"error Insert visit_history: playerID=%s, tenantID=%d, competitionID=%s, createdAt=%d, updatedAt=%d, %w",
-			v.playerID, tenant.ID, competitionID, now, now, err,
-		)
-	}
+		if errors.Is(err, sql.ErrNoRows) {
+			if _, err := adminDB.ExecContext(
+				ctx,
+				"INSERT INTO visit_history (player_id, tenant_id, competition_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+				v.playerID, tenant.ID, competitionID, now, now,
+			); err != nil {
+				return fmt.Errorf(
+					"error Insert visit_history: playerID=%s, tenantID=%d, competitionID=%s, createdAt=%d, updatedAt=%d, %w",
+					v.playerID, tenant.ID, competitionID, now, now, err,
+				)
+
+			}
+		}
+    } 
+    if _,err := adminDB.ExecContext(
+                ctx,
+                "UPDATE visit_history SET updated_at = ? WHERE player_id = ? AND tenant_id = ? AND competition_id = ?",
+            now,
+            v.playerID,tenant.ID,competitionID,
+            );err != nil{
+                return fmt.Errorf("")
+            }
+
 
 	var rankAfter int64
 	rankAfterStr := c.QueryParam("rank_after")
