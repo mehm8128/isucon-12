@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/gofrs/flock"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -97,31 +98,31 @@ func createTenantDB(id int64) error {
 	return nil
 }
 
-// システム全体で一意なIDを生成する
-func dispenseID(ctx context.Context) (string, error) {
-	var id int64
-	var lastErr error
-	for i := 0; i < 100; i++ {
-		var ret sql.Result
-		ret, err := adminDB.ExecContext(ctx, "REPLACE INTO id_generator (stub) VALUES (?);", "a")
-		if err != nil {
-			if merr, ok := err.(*mysql.MySQLError); ok && merr.Number == 1213 { // deadlock
-				lastErr = fmt.Errorf("error REPLACE INTO id_generator: %w", err)
-				continue
-			}
-			return "", fmt.Errorf("error REPLACE INTO id_generator: %w", err)
-		}
-		id, err = ret.LastInsertId()
-		if err != nil {
-			return "", fmt.Errorf("error ret.LastInsertId: %w", err)
-		}
-		break
-	}
-	if id != 0 {
-		return fmt.Sprintf("%x", id), nil
-	}
-	return "", lastErr
-}
+// // システム全体で一意なIDを生成する
+// func dispenseID(ctx context.Context) (string, error) {
+// 	var id int64
+// 	var lastErr error
+// 	for i := 0; i < 100; i++ {
+// 		var ret sql.Result
+// 		ret, err := adminDB.ExecContext(ctx, "REPLACE INTO id_generator (stub) VALUES (?);", "a")
+// 		if err != nil {
+// 			if merr, ok := err.(*mysql.MySQLError); ok && merr.Number == 1213 { // deadlock
+// 				lastErr = fmt.Errorf("error REPLACE INTO id_generator: %w", err)
+// 				continue
+// 			}
+// 			return "", fmt.Errorf("error REPLACE INTO id_generator: %w", err)
+// 		}
+// 		id, err = ret.LastInsertId()
+// 		if err != nil {
+// 			return "", fmt.Errorf("error ret.LastInsertId: %w", err)
+// 		}
+// 		break
+// 	}
+// 	if id != 0 {
+// 		return fmt.Sprintf("%x", id), nil
+// 	}
+// 	return "", lastErr
+// }
 
 // 全APIにCache-Control: privateを設定する
 func SetCacheControlPrivate(next echo.HandlerFunc) echo.HandlerFunc {
@@ -793,10 +794,10 @@ func playersAddHandler(c echo.Context) error {
 
 	pds := make([]PlayerDetail, 0, len(displayNames))
 	for _, displayName := range displayNames {
-		id, err := dispenseID(ctx)
-		if err != nil {
-			return fmt.Errorf("error dispenseID: %w", err)
-		}
+		id := uuid.New().String()
+		// if err != nil {
+		// 	return fmt.Errorf("error dispenseID: %w", err)
+		// }
 
 		now := time.Now().Unix()
 		if _, err := tenantDB.ExecContext(
@@ -911,10 +912,10 @@ func competitionsAddHandler(c echo.Context) error {
 	title := c.FormValue("title")
 
 	now := time.Now().Unix()
-	id, err := dispenseID(ctx)
-	if err != nil {
-		return fmt.Errorf("error dispenseID: %w", err)
-	}
+	id := uuid.New().String()
+	// if err != nil {
+	// 	return fmt.Errorf("error dispenseID: %w", err)
+	// }
 	if _, err := tenantDB.ExecContext(
 		ctx,
 		"INSERT INTO competition (id, tenant_id, title, finished_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -1081,10 +1082,10 @@ func competitionScoreHandler(c echo.Context) error {
 				fmt.Sprintf("error strconv.ParseUint: scoreStr=%s, %s", scoreStr, err),
 			)
 		}
-		id, err := dispenseID(ctx)
-		if err != nil {
-			return fmt.Errorf("error dispenseID: %w", err)
-		}
+		id := uuid.New().String()
+		// if err != nil {
+		// 	return fmt.Errorf("error dispenseID: %w", err)
+		// }
 		now := time.Now().Unix()
 		playerScoreRows = append(playerScoreRows, PlayerScoreRow{
 			ID:            id,
