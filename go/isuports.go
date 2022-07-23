@@ -377,6 +377,20 @@ func retrievePlayer(ctx context.Context, tenantDB dbOrTx, id string) (*PlayerRow
 	return &p, nil
 }
 
+// 参加者たちを取得する
+func retrievePlayers(ctx context.Context, tenantDB dbOrTx, ids []string) ([]PlayerRow, error) {
+	var ps []PlayerRow
+	sql := "SELECT * FROM player WHERE id IN (?)"
+	sql, params, err := sqlx.In(sql, ids)
+	if err != nil {
+		return nil, fmt.Errorf("error")
+	}
+	if err := tenantDB.GetContext(ctx, &ps, sql, params...); err != nil {
+		return nil, fmt.Errorf("error Select player: %w", err)
+	}
+	return ps, nil
+}
+
 // 参加者を認可する
 // 参加者向けAPIで呼ばれる
 func authorizePlayer(ctx context.Context, tenantDB dbOrTx, id string) error {
@@ -793,6 +807,7 @@ func playersAddHandler(c echo.Context) error {
 	displayNames := params["display_name[]"]
 
 	pds := make([]PlayerDetail, 0, len(displayNames))
+	players := make([]PlayerRow, 0, len(displayNames))
 	for _, displayName := range displayNames {
 		id := uuid.New().String()
 		// if err != nil {
@@ -800,27 +815,39 @@ func playersAddHandler(c echo.Context) error {
 		// }
 
 		now := time.Now().Unix()
-		if _, err := tenantDB.ExecContext(
-			ctx,
-			"INSERT INTO player (id, tenant_id, display_name, is_disqualified, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-			id, v.tenantID, displayName, false, now, now,
-		); err != nil {
-			return fmt.Errorf(
-				"error Insert player at tenantDB: id=%s, displayName=%s, isDisqualified=%t, createdAt=%d, updatedAt=%d, %w",
-				id, displayName, false, now, now, err,
-			)
-		}
-		p, err := retrievePlayer(ctx, tenantDB, id)
-		if err != nil {
-			return fmt.Errorf("error retrievePlayer: %w", err)
-		}
+		players = append(players, PlayerRow{
+			ID:             id,
+			TenantID:       v.tenantID,
+			DisplayName:    displayName,
+			IsDisqualified: false,
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		})
+	}
+	if _, err := tenantDB.NamedExecContext(
+		ctx,
+		"INSERT INTO player (id, tenant_id, display_name, is_disqualified, created_at, updated_at) VALUES (:id, :tenant_id, :display_name, :is_disqualified, :created_at, :updated_at)",
+		players,
+	); err != nil {
+		return fmt.Errorf(
+			"error Insert player : %w", err,
+		)
+	}
+	ids := make([]string, 0, len(displayNames))
+	for _, player := range players {
+		ids = append(ids, player.ID)
+	}
+	ps, err := retrievePlayers(ctx, tenantDB, ids)
+	if err != nil {
+		return fmt.Errorf("error retrievePlayer: %w", err)
+	}
+	for _, p := range ps {
 		pds = append(pds, PlayerDetail{
 			ID:             p.ID,
 			DisplayName:    p.DisplayName,
 			IsDisqualified: p.IsDisqualified,
 		})
 	}
-
 	res := PlayersAddHandlerResult{
 		Players: pds,
 	}
@@ -1107,18 +1134,13 @@ func competitionScoreHandler(c echo.Context) error {
 	); err != nil {
 		return fmt.Errorf("error Delete player_score: tenantID=%d, competitionID=%s, %w", v.tenantID, competitionID, err)
 	}
-	for _, ps := range playerScoreRows {
-		if _, err := tenantDB.NamedExecContext(
-			ctx,
-			"INSERT INTO player_score (id, tenant_id, player_id, competition_id, score, row_num, created_at, updated_at) VALUES (:id, :tenant_id, :player_id, :competition_id, :score, :row_num, :created_at, :updated_at)",
-			ps,
-		); err != nil {
-			return fmt.Errorf(
-				"error Insert player_score: id=%s, tenant_id=%d, playerID=%s, competitionID=%s, score=%d, rowNum=%d, createdAt=%d, updatedAt=%d, %w",
-				ps.ID, ps.TenantID, ps.PlayerID, ps.CompetitionID, ps.Score, ps.RowNum, ps.CreatedAt, ps.UpdatedAt, err,
-			)
-
-		}
+	if _, err := tenantDB.NamedExecContext(
+		ctx,
+		"INSERT INTO player_score (id, tenant_id, player_id, competition_id, score, row_num, created_at, updated_at) VALUES (:id, :tenant_id, :player_id, :competition_id, :score, :row_num, :created_at, :updated_at)",
+		playerScoreRows,
+	); err != nil {
+		return fmt.Errorf(
+			"error Insert player_score: %w", err)
 	}
 
 	return c.JSON(http.StatusOK, SuccessResult{
