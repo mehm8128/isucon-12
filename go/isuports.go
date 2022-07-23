@@ -1150,28 +1150,83 @@ func billingHandler(c echo.Context) error {
 	}
 	defer tenantDB.Close()
 
-	cs := []CompetitionRow{}
+	tbrs_new := []BillingReport{}
 	if err := tenantDB.SelectContext(
 		ctx,
-		&cs,
-		"SELECT * FROM competition WHERE tenant_id=? ORDER BY created_at DESC",
-		v.tenantID,
+		tbrs_new,
+		`
+SELECT   
+    competiton_id,
+    competition_title,
+    count(m = 10) as player_count,
+    count(m = 100) as visitor_count,
+    sum(case m = 10 then 10 else 0 end) as billing_player_yen,
+    sum(case when m=10 then 10 else 0 end) as billing_visitor_yen,
+    sum(case when m=100 then 100 when m = 10 then 10 else 0 end) as billing_yen
+FROM
+    (
+        SELECT
+            x1.competition_id as competition_id,
+            x1.competiton_title as competition_title,
+            y1.m as m 
+        FROM
+            x1 
+                LEFT JOIN
+                    (
+                        SELECT
+                            x1.tenant_id as tenant_id,
+                            CASE 
+                                WHEN x1.created_at IS NOT NULL AND x1.psid IS NULL AND x1.finished_at > x1.created_at THEN 10
+                                WHEN x1.player_score_id IS NOT NULL THEN 100
+                            END as m
+                        FROM
+                            (
+                                SELECT
+                                    cp.tenant_id AS tenant_id,
+                                    cp.title AS competition_title,
+                                    cp.id AS competition_id,
+                                    vh.created_at AS created_at,
+                                    cp.finished_at AS finished_at,
+                                    ps.id AS player_score_id
+                                FROM
+                                    competiton AS cp
+                                    LEFT JOIN player_score AS ps
+                                        ON cp.tenant_id = ps.tenant_id
+                                    LEFT JOIN admin.visit_history as vh
+                                        ON cp.tenant_id = vh.tenant_id
+                            ) as x1
+                    ) as y1
+                ON x1.tenant_id = y1.tenant_id
+    )
+        `,
 	); err != nil {
-		return fmt.Errorf("error Select competition: %w", err)
+		return fmt.Errorf("")
 	}
-	tbrs := make([]BillingReport, 0, len(cs))
-	for _, comp := range cs {
-		report, err := billingReportByCompetition(ctx, tenantDB, v.tenantID, comp.ID)
-		if err != nil {
-			return fmt.Errorf("error billingReportByCompetition: %w", err)
-		}
-		tbrs = append(tbrs, *report)
-	}
+
+	//
+	//	cs := []CompetitionRow{}
+	//	if err := tenantDB.SelectContext(
+	//		ctx,
+	//		&cs,
+	//		"SELECT * FROM competition WHERE tenant_id=? ORDER BY created_at DESC",
+	//		v.tenantID,
+	//	); err != nil {
+	//		return fmt.Errorf("error Select competition: %w", err)
+	//	}
+	//	tbrs := make([]BillingReport, 0, len(cs))
+	//	for _, comp := range cs {
+	//		report, err := billingReportByCompetition(ctx, tenantDB, v.tenantID, comp.ID)
+	//		if err != nil {
+	//			return fmt.Errorf("error billingReportByCompetition: %w", err)
+	//		}
+	//		tbrs = append(tbrs, *report)
+	//	}
+	//
 
 	res := SuccessResult{
 		Status: true,
 		Data: BillingHandlerResult{
-			Reports: tbrs,
+			Reports: tbrs_new,
 		},
 	}
 	return c.JSON(http.StatusOK, res)
