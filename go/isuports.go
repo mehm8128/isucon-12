@@ -564,7 +564,7 @@ func billingReportByCompetition(ctx context.Context, tenantDB dbOrTx, tenantID i
 	if err := adminDB.SelectContext(
 		ctx,
 		&vhs,
-		"SELECT player_id, created_at AS min_created_at FROM visit_history WHERE tenant_id = ? AND competition_id = ? ",
+		"SELECT player_id, updated_at AS min_created_at FROM visit_history WHERE tenant_id = ? AND competition_id = ? ",
 		tenantID,
 		comp.ID,
 	); err != nil && err != sql.ErrNoRows {
@@ -833,21 +833,34 @@ func playersAddHandler(c echo.Context) error {
 			"error Insert player : %w", err,
 		)
 	}
-	ids := make([]string, 0, len(displayNames))
+
 	for _, player := range players {
-		ids = append(ids, player.ID)
-	}
-	ps, err := retrievePlayers(ctx, tenantDB, ids)
-	if err != nil {
-		return fmt.Errorf("error retrievePlayer: %w", err)
-	}
-	for _, p := range ps {
+		p, err := retrievePlayer(ctx, tenantDB, player.ID)
+		if err != nil {
+			return fmt.Errorf("error retrievePlayer: %w", err)
+		}
 		pds = append(pds, PlayerDetail{
 			ID:             p.ID,
 			DisplayName:    p.DisplayName,
 			IsDisqualified: p.IsDisqualified,
 		})
 	}
+
+	// ids := make([]string, 0, len(displayNames))
+	// for _, player := range players {
+	// 	ids = append(ids, player.ID)
+	// }
+	// ps, err := retrievePlayers(ctx, tenantDB, ids)
+	// if err != nil {
+	// 	return fmt.Errorf("error retrievePlayer: %w", err)
+	// }
+	// for _, p := range p {
+	// 	pds = append(pds, PlayerDetail{
+	// 		ID:             p.ID,
+	// 		DisplayName:    p.DisplayName,
+	// 		IsDisqualified: p.IsDisqualified,
+	// 	})
+	// }
 	res := PlayersAddHandlerResult{
 		Players: pds,
 	}
